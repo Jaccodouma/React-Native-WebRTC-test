@@ -1,5 +1,4 @@
 import React from 'react';
-import { Text, View } from 'react-native';
 import 'react-native-gesture-handler';
 
 import { NavigationContainer } from '@react-navigation/native';
@@ -9,7 +8,6 @@ import { createStackNavigator } from '@react-navigation/stack';
 import LoadingScreen from './pages/LoadingScreen';
 import HomeScreen from './pages/HomeScreen';
 
-import Chat_Home from './pages/chat/Chat_Home';
 import VideoCall_Home from './pages/videoCall/VideoCall_Home';
 
 const Stack = createStackNavigator();
@@ -31,10 +29,6 @@ const DutchNow = () => {
         <Stack.Screen 
           name="videocall_home"
           component={VideoCall_Home}
-        />
-        <Stack.Screen 
-          name="chat_home"
-          component={Chat_Home}
         />
       </Stack.Navigator>
     </NavigationContainer>

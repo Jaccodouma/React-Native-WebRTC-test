@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Button, Pressable, StyleSheet, Text, View } from 'react-native';
+import React from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import changeNavigationBarColor from 'react-native-navigation-bar-color';
 
 
@@ -8,9 +8,6 @@ const HomeScreen = ({navigation}: any) => {
 
     changeNavigationBarColor('#ff5700', false, false);
 
-    const onPressChats = () => {
-        navigation.navigate("chat_home");
-    }
     const onPressVideoCall = () => {
         navigation.navigate("videocall_home");
     }
@@ -18,17 +15,6 @@ const HomeScreen = ({navigation}: any) => {
     return(
         <View style={styles.container}>
             <Text>Home screen</Text>
-            {/* <Pressable 
-                onPress={onPressChats} 
-                disabled={true}
-                android_ripple={{
-                    color: '#225599'
-                }}
-            >
-                <Text
-                    style={styles.button}
-                >Chats</Text>
-            </Pressable> */}
             <Pressable 
                 onPress={onPressVideoCall}
                 android_ripple={{
