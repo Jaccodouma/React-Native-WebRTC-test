@@ -1,4 +1,6 @@
-# A quick how to run this thing (in VS Code & assuming you've set up react native and all that): 
+# A quick how to run this thing: 
+_I assume you're using VS Code, you've set up React Native and have two android devices on the same network as your PC/Laptop._
+
 ### Setup
 1. Clone this repo
 2. Open the "dutchnow_rn" folder in VS Code
