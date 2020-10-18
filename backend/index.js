@@ -56,13 +56,11 @@ io.on('connect', (socket) => {
             // Update peer pairs
             peers[`${socket.id}`] = waitingPeer.id; 
             peers[waitingPeer.id] = socket.id;
-
-            console.log(peers);
         })
     }
 });
 
 // Start server
 http.listen(3000, () => {
-    console.log(`Server started on *:3000`);
+    log(chalk.bold(chalk.magentaBright('Server started on *:3000')));
 })
