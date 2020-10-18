@@ -12,6 +12,9 @@ let clientCount = 0;
 // Peer waiting for the next peer to connect {id, offer}
 let waitingPeer;
 
+// Peer pairs (peers.from = to)
+let peers = {};
+
 // Sockets
 io.on('connect', (socket) => {
     log(`A client ${chalk.green("connected")} [${++clientCount}] ` + chalk.gray(socket.id));
@@ -19,8 +22,15 @@ io.on('connect', (socket) => {
     socket.on('disconnect', () => {
         log(`A client ${chalk.red("disconnected")} [${--clientCount}] ` + chalk.gray(socket.id));
         if (waitingPeer && socket.id == waitingPeer.id) waitingPeer = null;
+        peers = {};
     })
 
+    socket.on('ice-candidate', (candidate) => {
+        log("Received ICE candidate...");
+        socket.to(peers[socket.id]).emit('ice-candidate', candidate);
+    })
+
+    // Connect two peers
     if (!waitingPeer) {
         // There is no waiting peer
         log("No waiting peer, requesting offer...");
@@ -42,6 +52,12 @@ io.on('connect', (socket) => {
 
             // Send answer to waitingPeer
             socket.to(waitingPeer.id).emit('receive-answer', data);
+
+            // Update peer pairs
+            peers[`${socket.id}`] = waitingPeer.id; 
+            peers[waitingPeer.id] = socket.id;
+
+            console.log(peers);
         })
     }
 });

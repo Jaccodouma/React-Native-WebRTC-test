@@ -1,6 +1,10 @@
+// https://developer.mozilla.org/en-US/docs/Web/API/WebRTC_API/Signaling_and_video_calling
+
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
-import { mediaDevices, MediaStream, RTCPeerConnection, RTCSessionDescription, RTCSessionDescriptionType, RTCView } from 'react-native-webrtc';
+import { ActivityIndicator, NativeModules, StyleSheet, Text, View } from 'react-native';
+import { mediaDevices, MediaStream, RTCIceCandidate, RTCPeerConnection, RTCSessionDescription, RTCSessionDescriptionType, RTCView } from 'react-native-webrtc';
+
+import DeviceInfo from 'react-native-device-info';
 
 // Socket
 import io from 'socket.io-client';
@@ -20,6 +24,8 @@ function isRTCSessionDescription(desc: RTCSessionDescriptionType | undefined): d
     return (desc as RTCSessionDescriptionType) !== undefined;
 }
 
+const log = (msg: string) => { console.log(DeviceInfo.getDeviceNameSync() + ": " + msg) }
+
 const VideoCall = (props: any) => {
     /*
  
@@ -37,7 +43,7 @@ const VideoCall = (props: any) => {
     // const [pc, setPc] = useState<RTCPeerConnection>();
 
     const _pc = useRef<RTCPeerConnection>();
-    const pc = _pc.current;
+    // const pc = _pc.current;
 
     // Lifecycle effect (runs at start, returns at end)
     useEffect(() => {
@@ -47,7 +53,7 @@ const VideoCall = (props: any) => {
         socket = io.connect('http://192.168.0.191:3000');
 
         socket.on('connect', () => {
-            console.log('Connected to server!');
+            log('Connected to server!');
         })
 
         socket.on('request-offer', (data: any, callback: Function) => {
@@ -62,9 +68,14 @@ const VideoCall = (props: any) => {
             receiveAnswer(data);
         })
 
+        socket.on('ice-candidate', (data: any) => {
+            receiveICECandidate(data);
+        });
+
         return () => {
             // This runs when the component dismounts
             mounted = false;
+            const pc = _pc.current;
             pc?.close();
             socket.disconnect();
         }
@@ -89,41 +100,53 @@ const VideoCall = (props: any) => {
  
     */
 
+    const receiveICECandidate = (data: any) => {
+        // Receive ICE Candidate
+        log("Received ICE Candidate!");
+
+        const c = new RTCIceCandidate(data);
+        const pc = _pc.current;
+        pc?.addIceCandidate(c);
+    }
+
     const openICECandidate = (pc: RTCPeerConnection) => {
-        pc.onicecandidate = (e) => {
-            console.log("onICECandidate");
+        pc.onicecandidate = (candidate) => {
+            log("Sending ICE candidate...");
+            // send ICE candidate to server
+            // console.log(candidate.candidate);
+            if (candidate.candidate) socket.emit('ice-candidate', candidate.candidate);
         };
     }
 
     const findRemoteStream = (pc: RTCPeerConnection) => {
         pc.onaddstream = e => {
-            console.log("Setting remote stream...");
+            log("Setting remote stream...");
             setRemoteStream(e.stream);
         }
     }
 
     const receiveAnswer = (data: any) => {
-        console.log("Received answer!");
+        log("Received answer!");
         const pc = _pc.current;
 
         pc?.setRemoteDescription(
             new RTCSessionDescription(data)
         )
-        .then(() => {
-            // console.log("Succesully set remote description! :D (receiveAnswer)");
-        }).catch().catch(err => console.error(err));
+            .then(() => {
+                // console.log("Succesully set remote description! :D (receiveAnswer)");
+            }).catch().catch(err => console.error(err));
 
     }
 
     const requestAnswer = (data: any, callback: Function): void => {
-        console.log("Creating answer...");
+        log("Creating answer...");
 
         const pc = new RTCPeerConnection(config);
-        _pc.current = pc; 
+        _pc.current = pc;
 
-        openICECandidate(pc);
-
+        // Set events on peer connection
         findRemoteStream(pc);
+        openICECandidate(pc);
 
         pc?.setRemoteDescription(
             new RTCSessionDescription(data.description)
@@ -156,13 +179,13 @@ const VideoCall = (props: any) => {
     }
 
     const requestOffer = async (callback: Function): Promise<void> => {
-        console.log("Creating offer...");
+        log("Creating offer...");
 
         const pc = new RTCPeerConnection(config);
-        _pc.current = pc; 
+        _pc.current = pc;
 
+        // Set events on peer connection
         openICECandidate(pc);
-
         findRemoteStream(pc);
 
         await findLocalStream(pc);
@@ -194,7 +217,7 @@ const VideoCall = (props: any) => {
     }
 
     const findLocalStream = (pc: RTCPeerConnection) => {
-        console.log("Finding local stream...");
+        log("Finding local stream...");
 
         return new Promise(async (resolve, reject) => {
             const availableDevices = await mediaDevices.enumerateDevices();
@@ -295,7 +318,7 @@ const VideoCall = (props: any) => {
             return (
                 <View style={styles_remotestream.container}>
                     <RTCView
-                        mirror={true}
+                        mirror={false}
                         objectFit='cover'
                         streamURL={remoteStream.toURL()}
                         style={styles_remotestream.stream}
@@ -312,6 +335,30 @@ const VideoCall = (props: any) => {
                     />
                 </View>
             )
+        }
+    }
+
+    const RemoteStream2 = () => {
+        if (remoteStream) {
+            return (
+                <View style={styles_remotestream2.container}>
+                    <RTCView
+                        mirror={true}
+                        objectFit='cover'
+                        streamURL={remoteStream?.toURL()}
+                        style={styles_remotestream2.stream}
+                    />
+                </View>
+            );
+        } else {
+            return (
+                <View style={styles_remotestream2.container}>
+                    <ActivityIndicator
+                        size='large'
+                        color='#ff5700'
+                    />
+                </View>
+            );
         }
     }
 
@@ -349,9 +396,10 @@ const VideoCall = (props: any) => {
 
     return (
         <View style={styles.container}>
-            <RemoteStream />
+            {/* <RemoteStream /> */}
+            <RemoteStream2 />
             <OwnStream />
-            <Buttons />
+            {/* <Buttons /> */}
         </View>
     )
 }
@@ -399,6 +447,26 @@ const styles_ownstream = StyleSheet.create({
 
         position: 'absolute',
         right: 10,
+        top: 10,
+        justifyContent: 'center',
+        overflow: 'hidden',
+    },
+    stream: {
+        flex: 1,
+    },
+})
+const styles_remotestream2 = StyleSheet.create({
+    container: {
+        backgroundColor: '#444',
+
+        width: '100%',
+        height: '100%',
+
+        borderWidth: 1,
+        borderRadius: 20,
+
+        position: 'absolute',
+        left: 10,
         top: 10,
         justifyContent: 'center',
         overflow: 'hidden',

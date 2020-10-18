@@ -17,6 +17,7 @@
     "random-words": "^1.1.1",
     "react": "16.13.1",
     "react-native": "0.63.3",
+    "react-native-device-info": "^4.0.1-rc.1",
     "react-native-gesture-handler": "^1.8.0",
     "react-native-navigation-bar-color": "^2.0.1",
     "react-native-reanimated": "^1.13.1",
