@@ -6,6 +6,8 @@
 
 ### Run backend 
 1. Enter `cd backend && npm i && node index`. 
+2. Copy the IP and port in the terminal (should be nice and purple) 
+3. Go to `dutchnow_rn/pages/videoCall/VideoCall_Home.tsx` and look for `socket = io.connect('http://192.168.0.191:3000');` on line 53 and replace the IP with the one you copied
 
 ### Run app
 1. Open another termial (Or split the current one with `ctrl + shift + 5`)
