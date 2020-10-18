@@ -1,0 +1,416 @@
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { mediaDevices, MediaStream, RTCPeerConnection, RTCSessionDescription, RTCSessionDescriptionType, RTCView } from 'react-native-webrtc';
+
+// Socket
+import io from 'socket.io-client';
+let socket: SocketIOClient.Socket;
+
+// RTCPeerConnection config
+const config = { "iceServers": [{ "url": "stun:stun.l.google.com:19302" }] };
+
+// Whether the component is mounted
+let mounted = false;
+
+// Type guards
+function isMediaStream(stream: MediaStream | boolean): stream is MediaStream {
+    return (stream as MediaStream) !== undefined;
+}
+function isRTCSessionDescription(desc: RTCSessionDescriptionType | undefined): desc is RTCSessionDescriptionType {
+    return (desc as RTCSessionDescriptionType) !== undefined;
+}
+
+const VideoCall = (props: any) => {
+    /*
+ 
+       _   _  ___   ___  _  ______  
+      | | | |/ _ \ / _ \| |/ / ___| 
+      | |_| | | | | | | | ' /\___ \ 
+      |  _  | |_| | |_| | . \ ___) |
+      |_| |_|\___/ \___/|_|\_\____/ 
+                                    
+ 
+    */
+
+    const [localStream, setLocalStream] = useState<MediaStream>();
+    const [remoteStream, setRemoteStream] = useState<MediaStream>();
+    const [pc, setPc] = useState<RTCPeerConnection>();
+
+    // Lifecycle effect (runs at start, returns at end)
+    useEffect(() => {
+        mounted = true;
+
+        // Sockets
+        socket = io.connect('http://192.168.0.191:3000');
+
+        socket.on('connect', () => {
+            console.log('Connected to server!');
+        })
+
+        socket.on('request-offer', (data: any, callback: Function) => {
+            requestOffer(callback);
+        })
+
+        socket.on('request-answer', (data: any, callback: Function) => {
+            requestAnswer(data, callback);
+        })
+
+        socket.on('receive-answer', (data: any) => {
+            receiveAnswer(data);
+        })
+
+        return () => {
+            // This runs when the component dismounts
+            mounted = false;
+            pc?.close();
+            setPc(undefined);
+            socket.disconnect();
+        }
+    }, [])
+
+
+    /*
+ 
+       _____ _   _ _   _  ____ _____ ___ ___  _   _ ____  
+      |  ___| | | | \ | |/ ___|_   _|_ _/ _ \| \ | / ___| 
+      | |_  | | | |  \| | |     | |  | | | | |  \| \___ \ 
+      |  _| | |_| | |\  | |___  | |  | | |_| | |\  |___) |
+      |_|    \___/|_| \_|\____| |_| |___\___/|_| \_|____/ 
+                                                          
+ 
+    */
+
+    const findRemoteStream = (pc: RTCPeerConnection) => {
+        pc.onaddstream = e => {
+            console.log("SETTING REMOTE STREAM AAAAAAAAAAAAAAAAH");
+            setRemoteStream(e.stream);
+        }
+    }
+
+    const receiveAnswer = (data: any) => {
+        console.log("Received answer!");
+
+        pc?.setRemoteDescription(
+            new RTCSessionDescription(data)
+        )
+        .then(() => {
+            console.log("Succesully set remote description! :D");
+        }).catch().catch(err => console.error(err));
+
+    }
+
+    const requestAnswer = (data: any, callback: Function): void => {
+        console.log("Creating answer...");
+
+        //  LIL WARNING HERE!
+        //  Can't use setPc(new RTCPeer...) cause it wont' update until wayy after this is done running
+        //  I named it pc (same as the hook) so I don't have to rewrite anything, lil ugly tbh
+
+        const pc = new RTCPeerConnection(config);
+        setPc(pc);
+
+        findRemoteStream(pc);
+
+        pc?.setRemoteDescription(
+            new RTCSessionDescription(data.description)
+        ).then(async () => {
+
+            await findLocalStream(pc);
+
+            pc.createAnswer().then(answer => {
+
+                pc.setLocalDescription(answer).then(() => {
+
+                    callback(answer);
+
+                }).catch(err => {
+                    console.error("Unable to set local description!");
+                    console.error(err);
+                })
+
+            }).catch(err => {
+                console.error("Unable to create answer!");
+                console.error(err);
+            })
+
+        }).catch(err => {
+            console.error("Error setting Remote Description!");
+            console.error(err);
+        });
+
+    }
+
+
+    const requestOffer = async (callback: Function): Promise<void> => {
+        console.log("Creating offer...");
+
+        // See warning in requestAnswer
+        const pc = new RTCPeerConnection(config);
+        setPc(pc);
+
+        // pc.onnegotiationneeded = () => {
+        //     console.log("Yo imma negotiate");
+        // }
+
+        findRemoteStream(pc);
+
+        await findLocalStream(pc);
+
+        createOffer(pc).then((description) => {
+            // Send offer to server
+            callback(description);
+        }).catch(err => {
+            console.error("Unable to create offer!");
+            console.error(err);
+        });
+    }
+
+    const createOffer = (pc: RTCPeerConnection): Promise<RTCSessionDescriptionType> => {
+        return new Promise(async (resolve, reject) => {
+            // Create offer 
+            const description = await pc?.createOffer();
+
+            // Set local description
+            if (isRTCSessionDescription(description)) {
+                await pc?.setLocalDescription(description);
+
+                resolve(description);
+            } else {
+                // Unable to make description
+                reject("Can't set local description (isn't RTCSessionDescription)");
+            }
+        })
+    }
+
+    const findLocalStream = (pc: RTCPeerConnection) => {
+        console.log("Finding local stream...");
+
+        return new Promise(async (resolve, reject) => {
+            const availableDevices = await mediaDevices.enumerateDevices();
+            const { deviceId: sourceId } = availableDevices.find(
+                (device: any) => device.kind === 'videoinput' && device.facing === 'front',
+            );
+
+            const stream = await mediaDevices.getUserMedia({
+                audio: true,
+                video: {
+                    mandatory: {
+                        // Provide your own width, height and frame rate here
+                        minWidth: 500,
+                        minHeight: 300,
+                        minFrameRate: 30,
+                    },
+                    facingMode: 'user',
+                    optional: [{ sourceId }],
+                },
+            });
+
+            if (isMediaStream(stream)) {
+                // Set local stream
+                setLocalStream(stream);
+
+                // Add stream to pc 
+                if (pc) {
+                    pc.addStream(stream);
+                }
+
+                resolve(stream);
+            } else {
+                // There is no stream
+                reject();
+            }
+        })
+
+        // Another way of doing this, for some reason only worked on my tablet
+        return new Promise((resolve, reject) => {
+            mediaDevices.enumerateDevices().then(sourceInfos => {
+                // console.log(sourceInfos);
+
+                let videoSourceId;
+
+                for (let i = 0; i < sourceInfos.length; i++) {
+                    const sourceInfo = sourceInfos[i];
+                    if (sourceInfo.kind == "videoinput" && sourceInfo.facing == "front") {
+                        videoSourceId = sourceInfo.deviceId;
+                    }
+                }
+
+                mediaDevices.getUserMedia({
+                    audio: true,
+                    video: {
+                        mandatory: {
+                            minWidth: 300,
+                            minHeight: 300,
+                            minFrameRate: 20
+                        },
+                        facingMode: "user",
+                        optional: (videoSourceId ? [{ sourceId: videoSourceId }] : [])
+                    }
+                }).then(stream => {
+                    if (isMediaStream(stream)) {
+                        // Set local stream
+                        setLocalStream(stream);
+
+                        // Add stream to pc 
+                        if (pc) {
+                            pc.addStream(stream);
+                        }
+
+                        resolve(stream);
+                    } else {
+                        // There is no stream
+                        reject();
+                    }
+                }).catch(err => { console.error("Unable to get User Media!") });
+            });
+        });
+    }
+
+
+    /*
+ 
+        ____ ___  __  __ ____   ___  _   _ _____ _   _ _____ ____  
+       / ___/ _ \|  \/  |  _ \ / _ \| \ | | ____| \ | |_   _/ ___| 
+      | |  | | | | |\/| | |_) | | | |  \| |  _| |  \| | | | \___ \ 
+      | |__| |_| | |  | |  __/| |_| | |\  | |___| |\  | | |  ___) |
+       \____\___/|_|  |_|_|    \___/|_| \_|_____|_| \_| |_| |____/ 
+                                                                   
+ 
+    */
+
+    const RemoteStream = () => {
+        if (remoteStream) {
+            // Show remote stream!
+            console.log("Displaying remote stream!");
+            return (
+                <View style={styles_remotestream.container}>
+                    <RTCView
+                        mirror={true}
+                        objectFit='cover'
+                        streamURL={remoteStream.toURL()}
+                        style={styles_ownstream.stream}
+                    />
+                </View>
+            )
+        } else {
+            // Show loading icon (:
+            return (
+                <View style={styles_remotestream.container}>
+                    <ActivityIndicator
+                        size='large'
+                        color='#ff5700'
+                    />
+                </View>
+            )
+        }
+    }
+
+    const OwnStream = () => {
+        if (localStream) {
+            console.log("Displaying local stream!");
+            return (
+                <View style={styles_ownstream.container}>
+                    <RTCView
+                        mirror={true}
+                        objectFit='cover'
+                        streamURL={localStream?.toURL()}
+                        style={styles_ownstream.stream}
+                    />
+                </View>
+            );
+        } else {
+            console.log("NO LOCAL STREAM FOUND.");
+            return (
+                <View style={styles_ownstream.container}>
+                    <ActivityIndicator
+                        size='large'
+                        color='#ff5700'
+                    />
+                </View>
+            );
+        }
+    }
+
+    const Buttons = () => {
+        return (
+            <View style={styles_buttons.container}>
+                <Text>Buttons</Text>
+            </View>
+        )
+    }
+
+    return (
+        <View style={styles.container}>
+            <RemoteStream />
+            <OwnStream />
+            <Buttons />
+        </View>
+    )
+}
+
+/*
+ 
+   ____ _______   ___     _____ ____  _   _ _____ _____ _____ ____  
+  / ___|_   _\ \ / / |   | ____/ ___|| | | | ____| ____|_   _/ ___| 
+  \___ \ | |  \ V /| |   |  _| \___ \| |_| |  _| |  _|   | | \___ \ 
+   ___) || |   | | | |___| |___ ___) |  _  | |___| |___  | |  ___) |
+  |____/ |_|   |_| |_____|_____|____/|_| |_|_____|_____| |_| |____/ 
+                                                                    
+ 
+*/
+
+const styles = StyleSheet.create({
+    container: {
+        backgroundColor: '#333',
+        flex: 1,
+    }
+});
+
+const styles_remotestream = StyleSheet.create({
+    container: {
+        backgroundColor: '#321',
+        flex: 1,
+
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    stream: {
+        flex: 1,
+    }
+})
+
+const styles_ownstream = StyleSheet.create({
+    container: {
+        backgroundColor: '#444',
+
+        width: 100,
+        height: 150,
+
+        borderWidth: 1,
+        borderRadius: 20,
+
+        position: 'absolute',
+        right: 10,
+        top: 10,
+        justifyContent: 'center',
+        overflow: 'hidden',
+    },
+    stream: {
+        flex: 1,
+    },
+})
+
+const styles_buttons = StyleSheet.create({
+    container: {
+        width: '100%',
+        backgroundColor: '#4444',
+
+        justifyContent: 'center',
+        alignItems: 'center',
+
+        position: 'absolute',
+        bottom: 20,
+    },
+})
+
+export default VideoCall; 
