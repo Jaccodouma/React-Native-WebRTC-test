@@ -1,4 +1,5 @@
 const chalk = require('chalk');
+const { networkInterfaces } = require('os');
 const app = require('express')();
 const http = require('http').createServer(app);
 var io = require('socket.io')(http);
@@ -62,5 +63,6 @@ io.on('connect', (socket) => {
 
 // Start server
 http.listen(3000, () => {
-    log(chalk.bold(chalk.magentaBright('Server started on *:3000')));
+    const ip = (networkInterfaces()['Ethernet'].filter(ni => ni.family == 'IPv4')[0]['address']);
+    log(chalk.bold("Server started on " + chalk.magentaBright(`${ip}:3000`)));
 })
