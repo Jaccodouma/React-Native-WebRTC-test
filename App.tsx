@@ -9,6 +9,7 @@ import LoadingScreen from './pages/LoadingScreen';
 import HomeScreen from './pages/HomeScreen';
 
 import VideoCall_Home from './pages/videoCall/VideoCall_Home';
+import Examples from './pages/examples/home';
 
 const Stack = createStackNavigator();
 
@@ -29,6 +30,10 @@ const DutchNow = () => {
         <Stack.Screen 
           name="videocall_home"
           component={VideoCall_Home}
+        />
+        <Stack.Screen 
+          name="examples"
+          component={Examples}
         />
       </Stack.Navigator>
     </NavigationContainer>

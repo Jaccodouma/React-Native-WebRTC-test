@@ -9,6 +9,8 @@ target 'dutchnow_rn' do
   use_react_native!(:path => config["reactNativePath"])
 
 
+  pod 'react-native-webview', :path => '../node_modules/react-native-webview'
+
   target 'dutchnow_rnTests' do
     inherit! :complete
     # Pods for testing
