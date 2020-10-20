@@ -7,7 +7,7 @@ _I assume you're using VS Code, you've set up React Native and have two android 
 3. Open the terminal ``ctrl + ` ``
 
 ### Run backend 
-1. Enter `cd backend && npm i && node index`. 
+1. Enter `cd backend && npm i && node index`. (You may get an error if you're on wifi, change `const ip = some code` to `const ip = "*"` and manually find your PC's local IP)
 2. Copy the IP and port in the terminal (should be nice and purple) 
 3. Go to `dutchnow_rn/pages/videoCall/VideoCall_Home.tsx` and look for `socket = io.connect('http://192.168.0.191:3000');` on line 53 and replace the IP with the one you copied
 
